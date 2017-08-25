@@ -37,8 +37,6 @@ usage:
     >>> write_file( filename, buffer )
 """
 
-__version__ = '1.0'
-
 import struct
 import sys
 import os
@@ -83,9 +81,6 @@ def write_file( filename, buffer, append=False ):
     if logger().VERBOSE: logger().log( "[file] wrote %d bytes to '%.256s'" % ( len(buffer), filename ) )
     return True
 
-
-def read_chunk( f, size=0x1000 ):
-    return f.read( size )
 
 # determine if CHIPSEC is loaded as chipsec.exe or in python
 def main_is_frozen():

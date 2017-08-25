@@ -33,8 +33,6 @@ This will create multiple log files, binaries, and directories that correspond t
 .. note: It may be necessary to try various options for fw_type in order to correctly parse NVRAM variables. Currently, CHIPSEC does not autodetect the correct format. If the nvram directory does not appear and the list of nvram variables is empty, try again with another type.
 """
 
-__version__ = '1.0'
-
 import os
 import time
 
@@ -70,7 +68,7 @@ class DecodeCommand(BaseCommand):
         
         _uefi = uefi.UEFI( self.cs )
         if self.argv[2] == "types":
-            print "\n<fw_type> should be in [ %s ]\n" % ( " | ".join( ["%s" % t for t in uefi.fw_types] ) )
+            print "\n<fw_type> should be in [ %s ]\n" % ( " | ".join( ["%s" % t for t in uefi.uefi_platform.fw_types] ) )
             return
             
         rom_file = self.argv[2]

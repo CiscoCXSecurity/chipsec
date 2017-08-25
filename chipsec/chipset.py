@@ -32,8 +32,6 @@
 Contains platform identification functions
 """
 
-__version__ = '1.0'
-
 import sys
 import collections
 import os
@@ -56,13 +54,14 @@ import traceback
 
 
 class RegisterType:
-    PCICFG = 'pcicfg'
-    MMCFG  = 'mmcfg'
-    MMIO   = 'mmio'
-    MSR    = 'msr'
-    PORTIO = 'io'
-    IOBAR  = 'iobar'
-    MSGBUS = 'msgbus'
+    PCICFG    = 'pcicfg'
+    MMCFG     = 'mmcfg'
+    MMIO      = 'mmio'
+    MSR       = 'msr'
+    PORTIO    = 'io'
+    IOBAR     = 'iobar'
+    MSGBUS    = 'msgbus'
+    MM_MSGBUS = 'mm_msgbus'
 
 
 ##################################################################################
@@ -85,6 +84,7 @@ CHIPSET_ID_SKL     = 11
 CHIPSET_ID_BSW     = 12
 CHIPSET_ID_KBL     = 13
 CHIPSET_ID_CHT     = 14
+CHIPSET_ID_BDX     = 15
 
 CHIPSET_CODE_COMMON  = 'COMMON'
 CHIPSET_CODE_UNKNOWN = ''
@@ -103,8 +103,9 @@ CHIPSET_CODE_SKL     = 'SKL'
 CHIPSET_CODE_BSW     = 'BSW'
 CHIPSET_CODE_KBL     = 'KBL'
 CHIPSET_CODE_CHT     = 'CHT'
+CHIPSET_CODE_BDX     = 'BDX'
 
-CHIPSET_FAMILY_XEON  = [CHIPSET_ID_JKT,CHIPSET_ID_IVT,CHIPSET_ID_HSX]
+CHIPSET_FAMILY_XEON  = [CHIPSET_ID_JKT,CHIPSET_ID_IVT,CHIPSET_ID_HSX,CHIPSET_ID_BDX]
 CHIPSET_FAMILY_CORE  = [CHIPSET_ID_SNB,CHIPSET_ID_IVB,CHIPSET_ID_HSW,CHIPSET_ID_BDW,CHIPSET_ID_SKL,CHIPSET_ID_KBL]
 CHIPSET_FAMILY_ATOM  = [CHIPSET_ID_BYT,CHIPSET_ID_AVN,CHIPSET_CODE_BSW,CHIPSET_CODE_CHT]
 CHIPSET_FAMILY_QUARK = [CHIPSET_ID_QRK]
@@ -158,12 +159,23 @@ Chipset_Dictionary = {
 # 7th Generation Core Processor Family (Kabylake)
 0x5904 : {'name' : 'Kabylake',       'id' : CHIPSET_ID_KBL , 'code' : CHIPSET_CODE_KBL,  'longname' : 'Mobile 7th Generation Core Processor (Kabylake U)' },
 0x590C : {'name' : 'Kabylake',       'id' : CHIPSET_ID_KBL , 'code' : CHIPSET_CODE_KBL,  'longname' : 'Mobile 7th Generation Core Processor (Kabylake Y)' },
+0x591F : {'name' : 'Kabylake',       'id' : CHIPSET_ID_KBL , 'code' : CHIPSET_CODE_KBL,  'longname' : 'Desktop 7th Generation Core Processor (Kabylake S)' },
 
 # Xeon v3 Processor (Haswell Server)
 0x2F00 : {'name' : 'Haswell Server', 'id' : CHIPSET_ID_HSX,  'code' : CHIPSET_CODE_HSX,  'longname' : 'Server 4th Generation Core Processor (Haswell Server CPU / Wellsburg PCH)'},
 
+# Xeon v4 Processor (Broadwell Server)
+0x1618 : {'name' : 'Broadwell Server', 'id' : CHIPSET_ID_BDW , 'code' : CHIPSET_CODE_BDW,  'longname' : 'Intel Xeon Processor E3 v4 (Broadwell CPU)' },
+0x6F00 : {'name' : 'Broadwell Server', 'id' : CHIPSET_ID_BDX,  'code' : CHIPSET_CODE_BDX,  'longname' : 'Intel Xeon Processor E5/E7 v4 (Broadwell Server CPU / Wellsburg PCH)'},
+
 # Xeon v5 Processor (Skylake Server)
 0x1918 : {'name' : 'Skylake Server', 'id' : CHIPSET_ID_SKL,  'code' : CHIPSET_CODE_SKL,  'longname' : 'Intel Xeon Processor E3 v5 (Skylake CPU / Sunrise Point PCH)'},
+
+# Xeon v6 Processor (Kabylake Server)
+0x5900 : {'name' : 'Kabylake','id' : CHIPSET_ID_KBL , 'code' : CHIPSET_CODE_KBL,  'longname' : 'Intel Xeon Processor E3 v6 (Kabylake CPU)' },
+0x590F : {'name' : 'Kabylake','id' : CHIPSET_ID_KBL , 'code' : CHIPSET_CODE_KBL,  'longname' : 'Intel Xeon Processor E3 v6 (Kabylake CPU)' },
+0x5910 : {'name' : 'Kabylake','id' : CHIPSET_ID_KBL , 'code' : CHIPSET_CODE_KBL,  'longname' : 'Intel Xeon Processor E3 v6 (Kabylake CPU)' },
+0x5918 : {'name' : 'Kabylake','id' : CHIPSET_ID_KBL , 'code' : CHIPSET_CODE_KBL,  'longname' : 'Intel Xeon Processor E3 v6 (Kabylake CPU)' },
 
 #
 # Atom based SoC platforms
@@ -199,7 +211,6 @@ Chipset_Dictionary = {
 
 # Galileo Board
 0x0958 : {'name' : 'Galileo ',       'id' : CHIPSET_ID_QRK , 'code' : CHIPSET_CODE_QRK,  'longname' : 'Intel Quark SoC X1000' },
-
 
 }
 try:
@@ -360,17 +371,39 @@ class Chipset:
     ##################################################################################
 
     def init_xml_configuration( self ):
+        # Create a sorted config file list (xml only)
+        _cfg_files = []
         _cfg_path = os.path.join( chipsec.file.get_main_dir(), 'chipsec/cfg' )
-        # Load chipsec/cfg/common.xml configuration XML file common for all platforms if it exists
-        self.init_cfg_xml( os.path.join(_cfg_path,'common.xml'), self.code )
-        # Load chipsec/cfg/<code>.xml configuration XML file if it exists for platform <code>
+        for root, subdirs, files in os.walk(_cfg_path):
+            _cfg_files.extend([os.path.join(root, x) for x in files if fnmatch.fnmatch(x, '*.xml')])
+        _cfg_files.sort()
+        if logger().VERBOSE:
+            logger().log("[*] Configuration Files:")
+            for _xml in _cfg_files:
+                logger().log("[*] - {}".format(_xml))
+
+        # Locate common (chipsec/cfg/common*.xml) configuration XML files.
+        loaded_files = []
+        for _xml in _cfg_files:
+            if fnmatch.fnmatch(os.path.basename(_xml), 'common*.xml'):
+                loaded_files.append(_xml)
+
+        # Locate platform specific (chipsec/cfg/<code>*.xml) configuration XML files.
         if self.code and '' != self.code:
-            self.init_cfg_xml( os.path.join(_cfg_path,('%s.xml'%self.code)), self.code )
-        # Load configuration from all other XML files recursively (if any)
-        for dirname, subdirs, xml_fnames in os.walk( _cfg_path ):
-            for _xml in xml_fnames:
-                if fnmatch.fnmatch( _xml, '*.xml' ) and not fnmatch.fnmatch( _xml, 'common.xml' ) and not (_xml in ['%s.xml' % c.lower() for c in Chipset_Code]):
-                    self.init_cfg_xml( os.path.join(dirname,_xml), self.code )
+            for _xml in _cfg_files:
+                if fnmatch.fnmatch(os.path.basename(_xml), '{}*.xml'.format(self.code)):
+                    loaded_files.append(_xml)
+
+        # Locate configuration files from all other XML files recursively (if any) excluding other platform configuration files.
+        platform_files = []
+        for plat in [c.lower() for c in Chipset_Code]:
+            platform_files.extend([x for x in _cfg_files if fnmatch.fnmatch(os.path.basename(x), '{}*.xml'.format(plat))])
+        loaded_files.extend([x for x in _cfg_files if x not in loaded_files and x not in platform_files])
+
+        # Load all configuration files for this platform.
+        if logger().VERBOSE: logger().log("[*] Loading Configuration Files:")
+        for _xml in loaded_files:
+            self.init_cfg_xml(_xml, self.code)
         self.Cfg.XML_CONFIG_LOADED = True
 
 
@@ -549,7 +582,9 @@ class Chipset:
         elif RegisterType.IOBAR == rtype:
             reg_value = self.iobar.read_IO_BAR_reg( reg['bar'], int(reg['offset'],16), int(reg['size'],16) ) 
         elif RegisterType.MSGBUS == rtype:
-            reg_value = self.msgbus.message_reg_read( int(reg['port'],16), int(reg['offset'],16) ) 
+            reg_value = self.msgbus.msgbus_reg_read( int(reg['port'],16), int(reg['offset'],16) )
+        elif RegisterType.MM_MSGBUS == rtype:
+            reg_value = self.msgbus.mm_msgbus_reg_read(int(reg['port'],16), int(reg['offset'],16))
 
         return reg_value
 
@@ -583,7 +618,9 @@ class Chipset:
         elif RegisterType.IOBAR == rtype:
             self.iobar.write_IO_BAR_reg( reg['bar'], int(reg['offset'],16), int(reg['size'],16), reg_value )
         elif RegisterType.MSGBUS == rtype:
-            self.msgbus.message_reg_write( int(reg['port'],16), int(reg['offset'],16), reg_value ) 
+            self.msgbus.msgbus_reg_write( int(reg['port'],16), int(reg['offset'],16), reg_value ) 
+        elif RegisterType.MM_MSGBUS == rtype:
+            self.msgbus.mm_msgbus_reg_write(int(reg['port'],16), int(reg['offset'],16), reg_value)
 
     def read_register_dict( self, reg_name):
         reg_value = self.read_register(reg_name)
@@ -618,7 +655,7 @@ class Chipset:
         return reg_value
 
     def read_register_field( self, reg_name, field_name, preserve_field_position=False, cpu_thread=0 ):
-        reg_value = self.read_register(reg_name)
+        reg_value = self.read_register(reg_name, cpu_thread)
         return self.get_register_field(reg_name, reg_value, field_name, preserve_field_position)
 
     def write_register_field( self, reg_name, field_name, field_value, preserve_field_position=False, cpu_thread=0 ):
@@ -673,7 +710,7 @@ class Chipset:
             reg_str = "[*] %s = %s << %s (I/O port 0x%X)" % (reg_name, reg_val_str, reg['desc'], int(reg['port'],16))
         elif RegisterType.IOBAR == rtype:
             reg_str = "[*] %s = %s << %s (I/O %s + 0x%X)" % (reg_name, reg_val_str, reg['desc'], reg['bar'], int(reg['offset'],16))
-        elif RegisterType.MSGBUS == rtype:
+        elif RegisterType.MSGBUS == rtype or RegisterType.MM_MSGBUS == rtype:
             reg_str = "[*] %s = %s << %s (msgbus port 0x%X, off 0x%X)" % (reg_name, reg_val_str, reg['desc'], int(reg['port'],16), int(reg['offset'],16))
 
         reg_str += self._register_fields_str(reg, reg_val)

@@ -37,8 +37,6 @@ Management and communication with Windows kernel mode driver which provides acce
     http://sourceforge.net/projects/pywin32/
 """
 
-__version__ = '1.0'
-
 import os.path
 import struct
 import sys
@@ -47,6 +45,7 @@ import re
 import errno
 import traceback
 import time
+import shutil
 from threading import Lock
 from collections import namedtuple
 from ctypes import *
@@ -634,7 +633,7 @@ class Win32Helper(Helper):
         (eax,edx) = (0,0)
         out_length = 8
         out_buf = (c_char * out_length)()
-        in_buf = struct.pack( '=BI', cpu_thread_id, msr_addr )
+        in_buf = struct.pack( '=2I', cpu_thread_id, msr_addr )
         out_buf = self._ioctl( IOCTL_RDMSR, in_buf, out_length )
         (eax, edx) = struct.unpack( '2I', out_buf )
         return (eax, edx)
@@ -642,7 +641,7 @@ class Win32Helper(Helper):
     def write_msr( self, cpu_thread_id, msr_addr, eax, edx ):
         out_length = 0
         out_buf = (c_char * out_length)()
-        in_buf = struct.pack( '=B3I', cpu_thread_id, msr_addr, eax, edx )
+        in_buf = struct.pack( '=4I', cpu_thread_id, msr_addr, eax, edx )
         out_buf = self._ioctl( IOCTL_WRMSR, in_buf, out_length )
         return
 
@@ -673,7 +672,7 @@ class Win32Helper(Helper):
         in_length = len(ucode_update_buf) + 3
         out_length = 0
         out_buf = (c_char * out_length)()
-        in_buf = struct.pack( '=BH', cpu_thread_id, len(ucode_update_buf) ) + ucode_update_buf
+        in_buf = struct.pack( '=IH', cpu_thread_id, len(ucode_update_buf) ) + ucode_update_buf
         out_buf = self._ioctl( IOCTL_LOAD_UCODE_PATCH, in_buf, out_length )
         return True
 
@@ -696,13 +695,13 @@ class Win32Helper(Helper):
 
     def read_cr(self, cpu_thread_id, cr_number):
         value = 0
-        in_buf = struct.pack( '=HB', cr_number, cpu_thread_id )
+        in_buf = struct.pack( '=HI', cr_number, cpu_thread_id )
         out_buf = self._ioctl( IOCTL_RDCR, in_buf, 8 )
         value, = struct.unpack( '=Q', out_buf )
         return value
 
     def write_cr(self, cpu_thread_id, cr_number, value):
-        in_buf = struct.pack( '=HQB', cr_number, value )
+        in_buf = struct.pack( '=HQI', cr_number, value, cpu_thread_id )
         out_buf = self._ioctl( IOCTL_WRCR, in_buf, 0 )
         return True
 
@@ -710,7 +709,7 @@ class Win32Helper(Helper):
     # IDTR/GDTR/LDTR
     #
     def get_descriptor_table( self, cpu_thread_id, desc_table_code  ):
-        in_buf = struct.pack( 'BB', cpu_thread_id, desc_table_code )
+        in_buf = struct.pack( 'IB', cpu_thread_id, desc_table_code )
         out_buf = self._ioctl( IOCTL_GET_CPU_DESCRIPTOR_TABLE, in_buf, 18 )
         (limit,base,pa) = struct.unpack( '=HQQ', out_buf )
         return (limit,base,pa)

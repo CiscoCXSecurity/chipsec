@@ -32,8 +32,6 @@
 Common UEFI/EFI functionality including UEFI variables, Firmware Volumes, Secure Boot variables, S3 boot-script, UEFI tables, etc.
 """
 
-__version__ = '1.0'
-
 import os
 import struct
 from collections import namedtuple
@@ -372,7 +370,7 @@ LZMA_CUSTOM_DECOMPRESS_GUID = "EE4E5898-3914-4259-9D6E-DC7BD79403CF"
 
 FIRMWARE_VOLUME_GUID = "24400798-3807-4A42-B413-A1ECEE205DD8"
 TIANO_DECOMPRESSED_GUID = "A31280AD-481E-41B6-95E8-127F4C984779"
-
+VOLUME_SECTION_GUID = "367AE684-335D-4671-A16D-899DBFEA6B88"
 #
 # Compression Types
 #
@@ -632,7 +630,7 @@ def NextFwFile(FvImage, FvLength, fof, polarity):
     next_offset = None
     res = None
     update_or_deleted = False
-    if (fof + file_header_size) <= FvLength:
+    if (fof + file_header_size) <= min(FvLength, len(FvImage)):
         if ('\xff\xff\xff\xff' == FvImage[fof+file_header_size-4:fof+file_header_size]):
             next_offset = fof + 8
             return (cur_offset, next_offset, None, None, None, None, None, None, None, None, update_or_deleted, None)
